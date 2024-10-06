@@ -1,14 +1,3 @@
---Create a new table to store the average height and weight of athletes by country.
-CREATE TABLE Athlete_Avg_Stats (
-    country_noc VARCHAR(3),
-    avg_height DECIMAL(5,2),
-    avg_weight DECIMAL(5,2)
-);
-
---Insert a new record into the Olympics_Country table for a newly recognized country.
-INSERT INTO Olympics_Country (noc, country)
-VALUES ('NEW', 'Newland');
-
 --Find all distinct sports from the Olympic_Results table where the number of participants is greater than 20.
 SELECT DISTINCT sport
 FROM Olympic_Results
@@ -60,12 +49,6 @@ FROM Olympic_Athlete_Bio;
 --Find the current date and time of the server as current_datetime.
 SELECT GETDATE() AS current_datetime;
 
---Create a new table called ‘Country_Medal_Count’ with the total number of medals won by each country and insert the data.
-SELECT country_noc, SUM(CASE WHEN medal IS NOT NULL THEN 1 ELSE 0 END) AS total_medals
-INTO Country_Medal_Count
-FROM Olympic_Athlete_Event_Results
-GROUP BY country_noc;
-
 
 --Find the total number of medals won by each country that has won more than 10 medals.
 SELECT country_noc, SUM(CASE WHEN medal IS NOT NULL THEN 1 ELSE 0 END) AS total_medals
@@ -89,26 +72,6 @@ SELECT country_noc,
     END AS classification
 FROM Olympic_Games_Medal_Tally;
 
-
---Create a stored procedure to get the medal tally for a specific country and year.
-CREATE PROCEDURE GetMedalTally @country_noc VARCHAR(3), @year INT
-AS
-BEGIN
-    SELECT SUM(gold + silver + bronze) AS total_medals
-    FROM Olympic_Games_Medal_Tally
-    WHERE country_noc = @country_noc AND year = @year;
-END;
-
---Store the total number of medals won by a specific country -ex: ‘USA’- in a variable.
-DECLARE @total_medals INT;
-SELECT @total_medals = SUM(gold + silver + bronze)
-FROM Olympic_Games_Medal_Tally
-WHERE country_noc = 'USA';
-
---Create a dynamic SQL statement to retrieve medal data for a specific sport.
-DECLARE @sql NVARCHAR(MAX) = 'SELECT * FROM Olympic_Athlete_Event_Results WHERE sport = ''Basketball''';
-EXEC sp_executesql @sql;
-
 --Check if a country has won more than 50 medals then print the country name and ‘High Medal Count’, if not, print ‘Low Medal Count’ behind the country name.
 SELECT country_noc,
     CASE 
@@ -118,22 +81,24 @@ SELECT country_noc,
 FROM Olympic_Games_Medal_Tally;
 
 --Loop through each athlete in a list and print their name along with their country.
-DECLARE athlete_cursor CURSOR FOR
-SELECT name, country_noc FROM Olympic_Athlete_Bio;
+DECLARE @name NVARCHAR(255);
+DECLARE @country_noc NVARCHAR(10);
+DECLARE @counter INT = 1;
+DECLARE @totalRows INT;
 
-OPEN athlete_cursor;
-FETCH NEXT FROM athlete_cursor INTO @name, @country_noc;
 
-WHILE @@FETCH_STATUS = 0
+SELECT @totalRows = COUNT(*) FROM Olympic_Athlete_Bio;
+WHILE @counter <= @totalRows
 BEGIN
+    SELECT @name = name, @country_noc = country_noc 
+    FROM (
+        SELECT name, country_noc, ROW_NUMBER() OVER (ORDER BY name) AS RowNum
+        FROM Olympic_Athlete_Bio
+    ) AS AthleteList
+    WHERE RowNum = @counter;
     PRINT @name + ' - ' + @country_noc;
-    FETCH NEXT FROM athlete_cursor INTO @name, @country_noc;
+    SET @counter = @counter + 1;
 END;
-
-CLOSE athlete_cursor;
-DEALLOCATE athlete_cursor;
-
-
 
 --Find the athletes who have participated in more than one edition of the Olympics.
 SELECT athlete, COUNT(DISTINCT edition) AS edition_count
@@ -148,25 +113,3 @@ WHERE medal IS NOT NULL
 GROUP BY athlete
 HAVING SUM(CASE WHEN sport IN ('Summer Sports') THEN 1 ELSE 0 END) > 0
 AND SUM(CASE WHEN sport IN ('Winter Sports') THEN 1 ELSE 0 END) > 0;
-
---Create a stored procedure UpdateAthleteInfo that takes an athlete's ID, a column name, and a new value as input parameters. It updates the specified column for the given athlete with the new value.
-CREATE PROCEDURE UpdateAthleteInfo 
-    @athlete_id INT, 
-    @column_name NVARCHAR(50), 
-    @new_value NVARCHAR(MAX)
-AS
-BEGIN
-    DECLARE @sql NVARCHAR(MAX);
-    SET @sql = 'UPDATE Olympic_Athlete_Bio SET ' + @column_name + ' = ''' + @new_value + ''' WHERE athlete_id = ' + CAST(@athlete_id AS NVARCHAR);
-    EXEC sp_executesql @sql;
-END;
-
---Create a stored procedure GetAthletesByMedalType that takes a medal type as an input parameter and dynamically generates a report of athletes who have won that type of medal.
-CREATE PROCEDURE GetAthletesByMedalType @medal_type VARCHAR(6)
-AS
-BEGIN
-    SELECT athlete, medal
-    FROM Olympic_Athlete_Event_Results
-    WHERE medal = @medal_type;
-END;
-
