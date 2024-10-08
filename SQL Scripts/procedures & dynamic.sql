@@ -1,5 +1,5 @@
 --Create a stored procedure to get the medal tally for a specific country and year.
-CREATE PROCEDURE Get_Medal_Tally @country_noc VARCHAR(3), @year INT
+CREATE PROCEDURE Country_Medal_Tally @country_noc VARCHAR(3), @year INT
 AS
 BEGIN
     SELECT SUM(gold + silver + bronze) AS total_medals
